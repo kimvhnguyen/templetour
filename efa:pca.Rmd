@@ -1,0 +1,849 @@
+---
+title: "EFA and PCA behavioral analysis for Temple Tour"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+#From Tom Olino's EFA/CFA script
+#install.packages('lavaan')
+#install.packages('haven')
+#install.packages('tidyverse')
+#install.packages('psych')
+#install.packages('GPArotation')
+#install.packages('lavaan')
+#install.packages('semPlot')
+#install.packages('ltm')
+
+library(haven)
+library(tidyverse)
+library(psych)
+library(GPArotation)
+library(lavaan)
+library(semPlot)
+library(ltm)
+library(corrplot)
+library(RColorBrewer)
+library(lsr)
+```
+
+
+```{r}
+#data
+options(scipen=100)
+options(digits=3)
+
+setwd('/Users/KimNguyen/Desktop/Temple_Tour/Data/behav_analyses')
+
+df<- read.csv("tt_behav.csv")
+df$JRD <- -1*(df$JRD)
+df$Route_test <- -1*(df$Route_test)
+data <- as.data.frame(df)
+
+
+#subset variables
+data <- df[c(10:12, 17:19,23)] 
+#data <- df_sbsod[-c(8)]
+#write.csv(data1, "pca_data.csv")
+#data <- na.omit(data)
+#summary(data)
+
+#normalize data after barlett's test
+df_norm <- scale(data)
+df_norm <- as.data.frame(df_norm)
+
+```
+
+##Correlation matrix
+```{r}
+#correlation matrix
+corr_matrix <- cor(na.omit(df_norm))
+
+#create sig. matrix
+cor.mtest <- function(mat, ...) {
+  mat <- as.matrix(data)
+  n <- ncol(mat)
+  p.mat<- matrix(NA, n, n)
+  diag(p.mat) <- 0
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+      tmp <- cor.test(mat[, i], mat[, j], ...)
+      p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+    }
+  }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+# matrix of the p-value of the correlation
+p.mat <- cor.mtest(corr_matrix)
+#head(p.mat[, 1:5])
+```
+
+##Correlation plot
+```{r}
+corrplot(corr_matrix,
+         method = "shade",
+         addCoef.col = "black",
+         p.mat = p.mat$p,
+         insig = "label_sig",
+         sig.level = c(.001,0.01, 0.05),
+         pch.cex = 0.9,
+         pch.col = "black",
+         type = "lower",
+         tl.srt = 45,
+         tl.cex = 1,
+         tl.col = 1,
+         tl.pos = "ld",
+         number.cex = .8,
+         cl.cex = .8,
+         #title = "Bivariate Correlations",
+         mar=c(0,0,2,0),
+         col=brewer.pal(n=8, name="GnBu"),
+         cl.pos = "b",
+         #bg = "white",
+         diag=FALSE)
+```
+
+```{r}
+#internal reliability 
+df_jrd<- read.csv("jrd_trials.csv")
+df_jrd <- as.data.frame(df_jrd)
+df_jrd <- cbind(df_jrd, data$Age_group)
+jrd_yc <- subset(df_jrd, data$Age_group == "child1")
+jrd_oc <- subset(df_jrd, data$Age_group == "child2")
+jrd_a <- subset(df_jrd, data$Age_group == "adult")
+cronbach.alpha(jrd_a, CI = TRUE) # alpha = .659, yc = .52, oc = .34, a = .72
+
+df_rt<- read.csv("routes_trials.csv")
+rt_yc <- subset(df_rt, data$Age_group == "child1")
+rt_yc <- rt_yc[-c(1,14)]
+rt_oc <- subset(df_rt, data$Age_group == "child2")
+rt_oc <- rt_oc[-c(1,14)]
+rt_a <- subset(df_rt, data$Age_group == "adult")
+rt_a <- rt_a[-c(1,14)]
+
+df_rt <- df_rt[-c(1,14)]
+cronbach.alpha(rt_a, CI = TRUE) #alpha = .516, yc = .463, oc = .374, a = .566
+
+#recognition
+df_rec<- read.csv("rec_trials.csv")
+df_rec <- as.data.frame(df_rec)
+recA <- subset(df_rec, order == "A")
+recA <- na.omit(recA)
+recB <- subset(df_rec, order == "B")
+
+#recognition by age group
+rec_yc <- subset(recA,Age_group == "child1")
+rec_yc <- rec_yc[c(2:41)]
+cronbach.alpha(rec_yc, CI = TRUE)#.314
+
+rec_oc <- subset(recA,Age_group == "child2")
+rec_oc <- rec_oc[c(2:41)]
+cronbach.alpha(rec_oc, CI = TRUE)#-.005
+
+rec_a <- subset(recA,Age_group == "adult")
+rec_a <- rec_a[c(2:41)]
+cronbach.alpha(rec_a, CI = TRUE)#.367
+
+#recognition for perceptual each age group
+per_yc <- subset(recA,Age_group == "child1")
+per_yc <- per_yc[c(2:17)]
+cronbach.alpha(per_yc, CI = TRUE)#.504
+
+per_oc <- subset(recA,Age_group == "child2")
+per_oc <- per_oc[c(2:17)]
+cronbach.alpha(per_oc, CI = TRUE)#.567
+
+per_a <- subset(recA,Age_group == "adult")
+per_a <- per_a[c(2:17)]
+cronbach.alpha(per_a, CI = TRUE)#.507
+
+#recognition for happened each age group
+hap_yc <- subset(recA,Age_group == "child1")
+hap_yc <- hap_yc[c(18:25)]
+cronbach.alpha(hap_yc, CI = TRUE)#-.717
+
+hap_oc <- subset(recA,Age_group == "child2")
+hap_oc <- hap_oc[c(18:25)]
+cronbach.alpha(hap_oc, CI = TRUE)#-.614
+
+hap_a <- subset(recA,Age_group == "adult")
+hap_a <- hap_a[c(18:25)]
+cronbach.alpha(hap_a, CI = TRUE)#-.795
+
+#recognition for spatiotemp each age group
+spatio_yc <- subset(recA,Age_group == "child1")
+spatio_yc <- spatio_yc[c(26:41)]
+cronbach.alpha(spatio_yc, CI = TRUE)#-.091
+
+spatio_oc <- subset(recA,Age_group == "child2")
+spatio_oc <- spatio_oc[c(26:41)]
+cronbach.alpha(spatio_oc, CI = TRUE)#-.38
+
+spatio_a <- subset(recA,Age_group == "adult")
+spatio_a <- spatio_a[c(26:41)]
+cronbach.alpha(spatio_a, CI = TRUE)#-.059
+
+
+#rec A for all
+rec_all <- recA[c(2:41)]
+cronbach.alpha(rec_all, CI = TRUE)#.729
+
+df_per <- recA[c(2:17)]
+cronbach.alpha(df_per, CI = TRUE)#.495
+
+df_hap <- recA[c(18:25)]
+cronbach.alpha(df_hap, CI = TRUE)#.39
+
+df_spatio <- recA[c(26:41)]
+cronbach.alpha(df_spatio, CI = TRUE)#.62
+
+#rec B for all
+recb_all <- recB[c(2:41)]
+cronbach.alpha(recb_all, CI = TRUE)#.61
+
+df_perb <- recB[c(2:17)]
+cronbach.alpha(df_perb, CI = TRUE)#.18
+
+df_hapb <- recB[c(18:25)]
+cronbach.alpha(df_hapb, CI = TRUE)#.18
+
+df_spatiob <- recB[c(26:41)]
+cronbach.alpha(df_spatiob, CI = TRUE)#.569
+
+
+
+df_f1 <- na.omit(df_nor[c(2:3, 6:7)])
+df_f2 <- na.omit(df_norm[c(1, 4:5)])
+df_TC <- na.omit(df_factors[c(8:9)])
+
+cronbach.alpha(df_TC, CI = TRUE)
+
+```
+
+
+##EFA
+```{r}
+#Are the data appropriate for factor analysis?
+
+KMO(df_norm) # overall MSA = .82, each individual MSA is > .60
+
+bartlett.test(df_norm) # p < .0000001
+```
+
+```{r}
+#parallel analysis (with actual data and simulation)
+#How many factors to retain?
+
+par_analysis <- fa.parallel(df_norm, fm = "pa", n.iter = 100)
+
+#Output of parallel analysis only shows a subset of eigenvalues
+#The following creates the full list of eigenvalues
+
+#Read names of variables in the dataframe
+names(par_analysis)
+
+#Organize the variable labels into the same order as the output
+all_par_val <- data.frame(cbind(par_analysis[[1]], par_analysis[[6]], par_analysis[[5]], par_analysis[[2]], par_analysis[[4]], par_analysis[[3]]))
+
+#Rename the columns
+names(all_par_val) <- c(names(par_analysis[1]),
+                        names(par_analysis[6]),
+                        names(par_analysis[5]),
+                        names(par_analysis[2]),
+                        names(par_analysis[4]),
+                        names(par_analysis[3]))
+
+#Compute proportion of variance explained by each component individually
+all_par_val$pro_var_com <- all_par_val$pc.values/3 #divide by number of factors
+
+#Compute proportion of total variance explained by component solutions
+all_par_val$pro_cum_var_com <- cumsum(all_par_val$pro_var_com)
+
+all_par_val
+```
+
+```{r}
+#Velicer's MAP analysis
+vss_map <- vss(df_norm, 2, "varimax", fm = "pc") #second argument is number of components)
+
+#names(vss_map)
+```
+#PCA
+```{r}
+#PCA
+#A custom function to estimate a PCA for a specific number of components. 
+#This function writes output as new objects into the environment
+
+pca_est <- function(x) {
+  txt.read.in.data <- paste0("df_",formatC(x),"c_oblimin <<- principal(df_norm, ",formatC(x),", rotate = 'oblimin')")
+  eval(parse(text=txt.read.in.data))
+}
+
+```
+
+```{r}
+#Create sequence of integers to pass to the function
+comp1 <- seq(1, 1, 1) #second argument is the number of components
+comp2 <- seq(1, 2, 1)
+
+#Execute PCA function for 1 to 2 component solutions
+pca_sum1 <- lapply(comp1, pca_est)
+pca_sum2 <- lapply(comp2, pca_est)
+
+pca_sum1
+pca_sum2
+```
+
+
+```{r}
+#factor scores are the subject's score on a factor
+scores1 <- pca_sum1[[1]]$scores #get factor scores that you can use as observed vars in subsequent analysis
+scores2 <- pca_sum2[[2]]$scores 
+
+#factor loadings are the correlation of the original variable with a factor
+pc_load <- pca_sum2[[2]]$loadings #get factor loadings for the factor congruence analysis
+
+df_factors <- data.frame(cbind(df_norm, scores2))
+
+write.csv(df_factors, "df_norm_TCscores.csv")
+```
+
+```{r}
+fviz_pca_var(df_pc, col.var = "TC2", axes = c(1,2),
+             gradient.cols = c("deeppink4", "darkgoldenrod", "cornflowerblue"),
+             repel = TRUE)
+```
+
+
+##Running same analysis with SBSOD
+```{r}
+#running same analysis with SBSOD
+df_sbsod <- scale(df_sbsod)
+df_sbsod <- as.data.frame(df_sbsod)
+#create sig. matrix
+cor.mtest <- function(mat, ...) {
+  mat <- as.matrix(df_sbsod)
+  n <- ncol(mat)
+  p.mat<- matrix(NA, n, n)
+  diag(p.mat) <- 0
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+      tmp <- cor.test(mat[, i], mat[, j], ...)
+      p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+    }
+  }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+#correlation matrix
+matrix_sbsod <- cor(na.omit(df_sbsod))
+p.mat <- cor.mtest(matrix_sbsod)
+
+corrplot(matrix_sbsod,
+         method = "shade",
+         addCoef.col = "black",
+         p.mat = p.mat,
+         insig = "label_sig",
+         sig.level = c(.001,0.01, 0.05),
+         pch.cex = 0.9,
+         pch.col = "black",
+         type = "lower",
+         tl.srt = 45,
+         tl.cex = 1,
+         tl.col = 1,
+         tl.pos = "ld",
+         number.cex = .8,
+         cl.cex = .8,
+         #title = "Bivariate Correlations",
+         mar=c(0,0,2,0),
+         col=brewer.pal(n=8, name="GnBu"),
+         cl.pos = "b",
+         #bg = "white",
+         diag=FALSE)
+
+```
+
+```{r}
+df_sbsod <- na.omit(df_sbsod)
+
+KMO(df_sbsod) # overall MSA = .82, each individual MSA is > .60
+bartlett.test(df_sbsod) # p < .0000001, use df not scaled
+
+#parallel analysis (with actual data and simulation)
+#How many factors to retain?
+
+par_analysis <- fa.parallel(df_sbsod, fm = "pa", n.iter = 100)
+
+#Output of parallel analysis only shows a subset of eigenvalues
+#The following creates the full list of eigenvalues
+
+#Read names of variables in the dataframe
+names(par_analysis)
+
+#Organize the variable labels into the same order as the output
+all_par_val <- data.frame(cbind(par_analysis[[1]], par_analysis[[6]], par_analysis[[5]], par_analysis[[2]], par_analysis[[4]], par_analysis[[3]]))
+
+#Rename the columns
+names(all_par_val) <- c(names(par_analysis[1]),
+                        names(par_analysis[6]),
+                        names(par_analysis[5]),
+                        names(par_analysis[2]),
+                        names(par_analysis[4]),
+                        names(par_analysis[3]))
+
+#Compute proportion of variance explained by each component individually
+all_par_val$pro_var_com <- all_par_val$pc.values/2 #divide by number of factors
+
+#Compute proportion of total variance explained by component solutions
+all_par_val$pro_cum_var_com <- cumsum(all_par_val$pro_var_com)
+
+all_par_val
+
+#Velicer's MAP analysis
+vss_map <- vss(df_sbsod, 2, "varimax", fm = "pc") #second argument is number of components)
+
+#Create sequence of integers to pass to the function
+comp_sbsod1 <- seq(1, 1, 1) #second argument is the number of components
+comp_sbsod2 <- seq(1, 2, 1)
+
+pca_est <- function(x) {
+  txt.read.in.data <- paste0("df_",formatC(x),"c_oblimin <<- principal(df_sbsod, ",formatC(x),", rotate = 'oblimin')")
+  eval(parse(text=txt.read.in.data))
+}
+
+#Execute PCA function for 1 to 2 component solutions
+pca_sbsod1 <- lapply(comp_sbsod1, pca_est)
+pca_sbsod2 <- lapply(comp_sbsod2, pca_est)
+
+pca_sbsod1
+pca_sbsod2
+```
+
+
+##Factor congruence across age groups
+#Given two sets of factor loadings, report their degree of #congruence (vector cosine). Although first reported by Burt #(1948), this is frequently known as the Tucker index of factor #congruence.
+#https://personality-project.org/r/html/factor.congruence.html
+
+```{r}
+#Running PCA for each age group
+df_norm$Age_group <- df$Age_group
+
+yc <- df_norm[df_norm$Age_group == "child1",-(8)]
+oc <- df_norm[df_norm$Age_group == "child2",-(8)]
+adult <- df_norm[df_norm$Age_group == "adult",-(8)]
+
+#change df name in pca_est function
+pca_yc <- lapply(comp2, pca_est)
+yc_load <- pca_yc[[2]]$loadings
+yc_load <- data.frame(cbind(yc_load))
+
+pca_oc <- lapply(comp2, pca_est)
+oc_load <- pca_oc[[2]]$loadings
+oc_load <- data.frame(cbind(oc_load))
+
+pca_adult <- lapply(comp2, pca_est)
+adult_load <- pca_adult[[2]]$loadings
+adult_load <- data.frame(cbind(adult_load))
+
+```
+
+
+```{r}
+#Factor 1 and 2 within age groups
+
+#younger child
+factor.congruence(yc_load$TC1, yc_load$TC2,digits=3,use="complete",structure=FALSE) #.182
+
+#older child
+factor.congruence(oc_load$TC1, oc_load$TC2,digits=3,use="complete",structure=FALSE) #.059
+
+#adults
+factor.congruence(adult_load$TC1, adult_load$TC2,digits=3,use="complete",structure=FALSE) #.099
+```
+
+```{r}
+#Factor 1 across age groups
+
+#younger vs older
+fa.congruence(yc_load$TC1, oc_load$TC1,digits=3,use="complete",structure=FALSE) #.507
+
+#older vs adult
+fa.congruence(oc_load$TC1, adult_load$TC1,digits=3,use="complete",structure=FALSE) #.7
+
+#younger vs adult
+fa.congruence(yc_load$TC1, adult_load$TC1,digits=3,use="complete",structure=FALSE) #.458
+```
+
+```{r}
+#Factor 2 across age groups
+
+#younger vs older
+fa.congruence(yc_load$TC2, oc_load$TC2,digits=3,use="complete",structure=FALSE) #.605
+
+#older vs adult
+fa.congruence(oc_load$TC2, adult_load$TC2,digits=3,use="complete",structure=FALSE) #.463
+
+#younger vs adult
+fa.congruence(yc_load$TC2, adult_load$TC2,digits=3,use="complete",structure=FALSE) #.075
+```
+.
+```{r}
+#Factor 1 vs 2 across age groups
+
+#younger1 vs older2
+fa.congruence(yc_load$TC1, oc_load$TC2,digits=3,use="complete",structure=FALSE) #.603
+
+#younger2 vs older1
+fa.congruence(yc_load$TC2, oc_load$TC1,digits=3,use="complete",structure=FALSE) #.511
+
+#older1 vs adult2
+fa.congruence(oc_load$TC1, adult_load$TC2,digits=3,use="complete",structure=FALSE) #.328
+
+#older2 vs adult1
+fa.congruence(oc_load$TC2, adult_load$TC1,digits=3,use="complete",structure=FALSE) #.585
+
+#younger1 vs adult2
+fa.congruence(yc_load$TC1, adult_load$TC2,digits=3,use="complete",structure=FALSE) #.784
+
+#younger2 vs adult1
+fa.congruence(yc_load$TC2, adult_load$TC1,digits=3,use="complete",structure=FALSE) #.874
+```
+
+
+##CFA for EFA/PCA factors
+
+```{r}
+#get covariance matrices
+cov_mat1 <- cov(df_norm[1:7])
+cov_mat1[upper.tri(cov_mat1)] <- NA #Means to asign NA to the elements above the diagonal
+
+#Define model to be estimated
+m1 <- 'F1 =~ NA*Route_test + MB_blank + spatiotemp + AI_internal
+        F1 ~~ 1*F1'
+
+#Estimate specified model
+
+m1_fit <- cfa(m1, df_norm)
+
+#Summary of fit information
+
+fitMeasures(m1_fit, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "BIC", "AIC")) #p = .04, good cfi, rmsea = .13
+
+#Return Coefficients
+
+m1_fit_c <- parameterEstimates(m1_fit)
+                   
+m1_fit_sc <-parameterEstimates(m1_fit, standardized = T)
+
+#Visualize model result
+#Raw coefficients
+#semPaths(m1_fit, whatLabels = "par", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+#         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+
+#Standardized coefficients
+semPaths(m1_fit, whatLabels = "std", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+
+```
+
+```{r}
+#get covariance matrices
+cov_mat1 <- cov(df_norm[1:7])
+cov_mat1[upper.tri(cov_mat1)] <- NA #Means to assign NA to the elements above the diagonal
+
+#Define model to be estimated
+m2 <- 'F2 =~ NA*JRD + perceptual + happened 
+        F2 ~~ 1*F2'
+
+#Estimate specified model
+
+m2_fit <- cfa(m2, df_norm, mimic = 'Mplus')
+
+#Summary of fit information
+
+fitMeasures(m2_fit, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "BIC", "AIC")) 
+
+#Return Coefficients
+
+m2_fit_c <- parameterEstimates(m2_fit) 
+                   
+m2_fit_sc <-parameterEstimates(m2_fit, standardized = T)
+
+#Visualize model result
+#Raw coefficients
+#semPaths(m2_fit, whatLabels = "par", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+#         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+
+#Standardized coefficients
+semPaths(m2_fit, whatLabels = "std", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+```
+
+```{r}
+#put models together
+
+m3 <- 'F1 =~ NA*Route_test + MB_blank + spatiotemp + AI_internal
+            F1 ~~ 1*F1
+            F2 =~ NA*JRD + perceptual + happened 
+            F2 ~~ 1*F2'
+
+m3_fit <- cfa(m3, df_norm, mimic = "Mplus")
+
+fitMeasures(m3_fit, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "BIC", "AIC")) 
+
+m3_fit_c <- parameterEstimates(m3_fit) 
+                   
+m3_fit_sc <-parameterEstimates(m3_fit, standardized = T)
+
+semPaths(m3_fit, whatLabels = "std", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+
+```
+
+```{r}
+#model with JRD in F1
+m3b <- 'F1 =~ NA*Route_test + MB_blank + JRD + spatiotemp + AI_internal
+            F1 ~~ 1*F1
+            F2 =~ NA*perceptual + happened 
+            F2 ~~ 1*F2'
+
+m3b_fit <- cfa(m3b, df_norm, mimic = "Mplus")
+
+fitMeasures(m3_fit, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "BIC", "AIC")) 
+
+m3b_fit_c <- parameterEstimates(m3b_fit) 
+                   
+m3b_fit_sc <-parameterEstimates(m3b_fit, standardized = T)
+
+semPaths(m3b_fit, whatLabels = "std", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+```
+
+```{r}
+#model with JRD in both factors
+m3c <- 'F1 =~ NA*Route_test + MB_blank + JRD + spatiotemp + AI_internal
+            F1 ~~ 1*F1
+            F2 =~ NA*perceptual + happened + JRD
+            F2 ~~ 1*F2'
+
+m3c_fit <- cfa(m3c, df_norm, mimic = "Mplus")
+
+fitMeasures(m3c_fit, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "BIC", "AIC")) 
+
+m3c_fit_c <- parameterEstimates(m3c_fit) 
+                   
+m3c_fit_sc <-parameterEstimates(m3c_fit, standardized = T)
+
+semPaths(m3c_fit, whatLabels = "std", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+```
+
+#age mediation model
+```{r}
+#put models together
+
+m4 <- 'F1 =~ NA*Route_test + MB_blank + spatiotemp + AI_internal
+            F2 =~ NA*JRD + perceptual + happened 
+            F1 ~~ 1*F1
+            F2 ~~ 1*F2
+            F2 ~ b*F1 + c*Age
+            F1 ~ a*Age
+            
+            #Indirect effect
+            ab := a*b
+            #Total effect
+            tot_eff := c + (a*b)'
+
+df_norm$Age <- scale(df$Age)
+
+m4_fit <- cfa(m4, df_norm, mimic = "Mplus")
+
+fitMeasures(m4_fit, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "BIC", "AIC")) 
+
+m4_fit_c <- parameterEstimates(m4_fit) 
+                   
+m4_fit_sc <-parameterEstimates(m4_fit, standardized = T)
+
+semPaths(m4_fit, whatLabels = "std", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+
+```
+
+#age moderation model
+```{r}
+df.tc <- df[-c(15),]
+df.tc <- df.tc[-c(27),]
+df.tc$Age_group <- factor(df.tc$Age_group, levels = c("child1","child2", "adult"))
+
+lm1 <- lm(TC2 ~ TC1*Age_group, data = df.tc)
+summary(lm1)
+gvlma(lm1)
+etaSquared(lm1)
+
+library(rockchalk)
+ps  <- plotSlopes(m1, plotx="TC1", modx="Age_group", xlab = "factor 1 scores", ylab = "factor 2 scores")
+
+int_plotA <- interact_plot(lm1, pred = TC1, modx = Age_group, 
+                           interval = TRUE, int.width = 0.95, 
+                           plot.points = TRUE, point.size = 2.0, 
+                           line.thickness = 1.25, jitter = FALSE, 
+                           vary.lty = FALSE,
+                           colors = c("darkcyan","darkslateblue","darkseagreen"),
+                           partial.residuals = TRUE, #legend.main = "Age group", 
+                           x.label = "factor 1 scores (z)", y.label = "factor 2 scores (z)")
+int_plotA + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                  panel.grid.minor = element_blank()) + 
+            theme(title = element_text(size = 23), axis.text = element_text(size = 18),axis.title = element_text(size = 20),legend.text = element_text(size = 15), legend.title = element_text(size=18))
+
+
+
+
+lm2 <- lm(TC1 ~ TC2*Age_group, data = df.tc)
+summary(lm2)
+gvlma(lm2)
+etaSquared(lm2)
+
+ps2  <- plotSlopes(m2, plotx="TC2", modx="Age_group", xlab = "factor 2 scores", ylab = "factor 1 scores")
+
+int_plotB <- interact_plot(lm2, pred = TC2, modx = Age_group, 
+                           interval = TRUE, int.width = 0.95, 
+                           plot.points = TRUE, point.size = 2.0, 
+                           line.thickness = 1.25, jitter = FALSE, 
+                           vary.lty = FALSE,
+                           colors = c("darkcyan","darkslateblue","darkseagreen"),
+                           partial.residuals = TRUE, #legend.main = "Age group", 
+                           y.label = "factor 1 scores (z)", x.label = "factor 2 scores (z)")
+int_plotB + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                  panel.grid.minor = element_blank()) + 
+            theme(title = element_text(size = 23), axis.text = element_text(size = 18),axis.title = element_text(size = 20),legend.text = element_text(size = 15), legend.title = element_text(size=18))
+
+
+
+m2 <- lm(TC2 ~ Age + KBIT_composite + Gender, data = df)
+summary(m2)
+etaSquared(m2)
+
+```
+
+
+#a priori models
+```{r}
+m4 <- 'F1 =~ NA*Route_test + MB_blank + JRD
+            F1 ~~ 1*F1
+            F2 =~ NA*spatiotemp + perceptual + happened + AI_internal
+            F2 ~~ 1*F2'
+
+m4_fit <- cfa(m4, df_norm, mimic = "Mplus")
+summary(m4_fit)
+
+fitMeasures(m4_fit, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "BIC", "AIC")) 
+
+m4_fit_c <- parameterEstimates(m4_fit) 
+                   
+m4_fit_sc <-parameterEstimates(m4_fit, standardized = T)
+
+semPaths(m4_fit, whatLabels = "std", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+
+```
+```{r}
+df.pca <- princomp(df_norm)
+summary(df.pca) 
+```
+
+```{r}
+#models with just kids
+
+df_kids <- subset(df, Age < 18)
+#subset variables
+df_kids <- df_kids[c(10:12, 17:19,23)] 
+
+#normalize data
+df_kids <- scale(df_kids)
+df_kids <- as.data.frame(df_kids)
+
+#EFA
+KMO(df_kids) # overall MSA = .75, each individual MSA is > .60
+
+bartlett.test(df_kids) 
+
+par_analysis <- fa.parallel(df_kids, fm = "pa", n.iter = 100)
+
+#Output of parallel analysis only shows a subset of eigenvalues
+#The following creates the full list of eigenvalues
+
+#Read names of variables in the dataframe
+names(par_analysis)
+
+#Organize the variable labels into the same order as the output
+all_par_val <- data.frame(cbind(par_analysis[[1]], par_analysis[[6]], par_analysis[[5]], par_analysis[[2]], par_analysis[[4]], par_analysis[[3]]))
+
+#Rename the columns
+names(all_par_val) <- c(names(par_analysis[1]),
+                        names(par_analysis[6]),
+                        names(par_analysis[5]),
+                        names(par_analysis[2]),
+                        names(par_analysis[4]),
+                        names(par_analysis[3]))
+
+#Compute proportion of variance explained by each component individually
+all_par_val$pro_var_com <- all_par_val$pc.values/3 #divide by number of factors
+
+#Compute proportion of total variance explained by component solutions
+all_par_val$pro_cum_var_com <- cumsum(all_par_val$pro_var_com)
+
+all_par_val
+
+vss_map <- vss(df_kids, 3, "varimax", fm = "pc") #second argument is number of components)
+
+pca_est <- function(x) {
+  txt.read.in.data <- paste0("df_",formatC(x),"c_oblimin <<- principal(df_kids, ",formatC(x),", rotate = 'oblimin')")
+  eval(parse(text=txt.read.in.data))
+}
+
+comp1 <- seq(1, 1, 1) #second argument is the number of components
+
+#Execute PCA function for 1 to 2 component solutions
+pca_sum1 <- lapply(comp1, pca_est)
+
+pca_sum1
+
+pc_load <- pca_sum1[[1]]$loadings
+
+#CFA
+
+m_kids <- 'F1 =~ NA*Route_test + MB_blank + JRD + spatiotemp + perceptual + happened + AI_internal'
+
+m_kids_fit <- cfa(m_kids, df_kids, mimic = "Mplus")
+summary(m_kids_fit)
+
+fitMeasures(m_kids_fit, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "BIC", "AIC")) 
+
+m_kids_fit_c <- parameterEstimates(m_kids_fit) 
+                   
+m_kids_fit_sc <-parameterEstimates(m_kids_fit, standardized = T)
+
+semPaths(m_kids_fit, whatLabels = "std", nCharNodes = 0, rotation = 2, edge.label.cex=1.25,edge.color="black",
+         sizeMan=10,sizeLat=10,fade=FALSE,esize=2,asize=2)
+
+```
+
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
